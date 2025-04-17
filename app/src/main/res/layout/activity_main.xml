@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity"
+    android:padding="16dp">
+
+    <ToggleButton
+        android:id="@+id/toggleButtonCollect"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textOff="Start Collecting"
+        android:textOn="Stop Collecting"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/tvConfigLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Configuration:"
+        android:layout_marginTop="24dp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toBottomOf="@id/toggleButtonCollect"
+        app:layout_constraintStart_toStartOf="parent"/>
+
+    <CheckBox
+        android:id="@+id/checkboxGyroscope"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enable Gyroscope"
+        android:checked="true"
+        app:layout_constraintTop_toBottomOf="@id/tvConfigLabel"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="8dp"/>
+
+    <CheckBox
+        android:id="@+id/checkboxAccelerometer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enable Accelerometer"
+        android:checked="true"
+        app:layout_constraintTop_toBottomOf="@id/checkboxGyroscope"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="8dp"/>
+
+    <TextView
+        android:id="@+id/tvFrequencyLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sampling Frequency:"
+        app:layout_constraintTop_toBottomOf="@id/checkboxAccelerometer"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="16dp"/>
+
+    <Spinner
+        android:id="@+id/spinnerFrequency"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@id/tvFrequencyLabel"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="8dp"/>
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Status: Idle"
+        android:layout_marginTop="24dp"
+        app:layout_constraintTop_toBottomOf="@id/spinnerFrequency"
+        app:layout_constraintStart_toStartOf="parent"/>
+
+    <TextView
+        android:id="@+id/tvLiveData"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Live Data:"
+        android:layout_marginTop="16dp"
+        android:lines="6"
+        android:gravity="top|start"
+        app:layout_constraintTop_toBottomOf="@id/tvStatus"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:text="Gyro: [X: 0.0, Y: 0.0, Z: 0.0]\nAccel: [X: 0.0, Y: 0.0, Z: 0.0]" />
+
+    <!-- Optional: Platzhalter für den Graphen -->
+    <!-- Füge hier die View für deine Graphen-Bibliothek ein, z.B. MPAndroidChart -->
+    <!--
+    <com.github.mikephil.charting.charts.LineChart
+        android:id="@+id/lineChart"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        app:layout_constraintTop_toBottomOf="@id/tvLiveData"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"/>
+    -->
+
+</androidx.constraintlayout.widget.ConstraintLayout>
