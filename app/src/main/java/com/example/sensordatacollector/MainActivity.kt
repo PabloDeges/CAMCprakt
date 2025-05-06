@@ -21,6 +21,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+// -- Fuer die Graphen --
+import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
+// ----------------------
+import android.graphics.Color
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
 
@@ -44,6 +52,14 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var lastAccelUpdateTime = 0L
     private val LIVE_UPDATE_INTERVAL_MS = 200 // UI nur alle 200ms aktualisieren
 
+    // --- Graph ---
+    private lateinit var lineChart: LineChart
+    private var lastChartUpdateTime = 0L
+    private val CHART_UPDATE_INTERVAL_MS = 100 // Aktualisierungsrate
+    private val MAX_CHART_ENTRIES = 200
+    private var startTimeNanos: Long = 0
+    // --- Graph Ende ---
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -55,6 +71,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         setupSpinner()
         setupToggleButton()
+        setupLineChart() // Graph-Initialisierung
 
         // Überprüfen, ob Sensoren vorhanden sind
         binding.checkboxGyroscope.isEnabled = (gyroscope != null)
@@ -89,6 +106,22 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             binding.spinnerFrequency.isEnabled = !isChecked
         }
     }
+    // --- Graph ---
+    private fun setupLineChart() {
+        lineChart = binding.lineChart // Annahme: ID im Layout ist 'lineChart'
+        lineChart.description.isEnabled = true
+        lineChart.description.text = "Live Sensor Data"
+        lineChart.setTouchEnabled(true)
+        lineChart.isDragEnabled = true
+        lineChart.setScaleEnabled(true)
+        lineChart.setPinchZoom(true)
+        lineChart.setBackgroundColor(Color.WHITE)
+
+        val lineData = LineData()
+        lineChart.data = lineData // Leere Daten initial zuweisen
+        lineChart.invalidate() // Chart neu zeichnen
+    }
+    // --- Graph Ende ---
 
     private fun getSelectedFrequency(): Int {
         return when (binding.spinnerFrequency.selectedItem.toString()) {
@@ -111,6 +144,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding.tvStatus.text = "Status: Collecting..."
         dataBuffer.clear()
         lastWriteTime = System.currentTimeMillis()
+
+        // --- Graph ---
+        startTimeNanos = SystemClock.elapsedRealtimeNanos()
+        clearChartData()
+        // --- Graph Ende ---
 
         // Datei für die Speicherung vorbereiten
         if (!prepareFileOutputStream()) {
@@ -238,6 +276,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val y: Float
         val z: Float
 
+        var updateChart = false // <--- HIER wird die Variable deklariert
+
         when (event.sensor.type) {
             Sensor.TYPE_GYROSCOPE -> {
                 sensorType = "GYRO"
@@ -251,6 +291,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                         binding.tvLiveData.text = updateLiveDataText("Gyro", x, y, z)
                     }
                 }
+                if (binding.checkboxGyroscope.isChecked) {
+                    addChartEntry(eventTimeNanos, x, y, z, isGyro = true)
+                    updateChart = true
+                }
             }
             Sensor.TYPE_ACCELEROMETER -> {
                 sensorType = "ACCEL"
@@ -262,6 +306,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     lastAccelUpdateTime = currentTimeMs
                     runOnUiThread { // UI-Updates müssen im Main Thread erfolgen
                         binding.tvLiveData.text = updateLiveDataText("Accel", x, y, z)
+                    }
+                    if (binding.checkboxAccelerometer.isChecked) {
+                        addChartEntry(eventTimeNanos, x, y, z, isGyro = false)
+                        updateChart = true
                     }
                 }
             }
@@ -281,6 +329,19 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         // Optional: Daten an Graphen senden (auch throttled!)
         // updateChart(sensorType, timestampMs, x, y, z)
+
+        // --- Graph ---
+        // Chart Aktualisierung (throttled)
+        if (updateChart && currentTimeMs - lastChartUpdateTime > CHART_UPDATE_INTERVAL_MS) {
+            lastChartUpdateTime = currentTimeMs
+            runOnUiThread {
+                lineChart.notifyDataSetChanged() // Datenänderung dem Chart mitteilen
+                lineChart.invalidate()           // Chart neu zeichnen
+                // Optional: Sichtbaren Bereich ans Ende scrollen
+                lineChart.moveViewToX(lineChart.data.entryCount.toFloat())
+            }
+        }
+        // --- Graph Ende ---
     }
 
     // Hilfsfunktion für Live-Daten Anzeige
@@ -298,7 +359,90 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         // Nur die ersten beiden Zeilen behalten und neu zusammensetzen
         return "$gyroLine\n$accelLine"
     }
+    // --- Graph ---
+    private fun clearChartData() {
+        if (::lineChart.isInitialized && lineChart.data != null) {
+            lineChart.data.clearValues() // Alle Datenpunkte entfernen
+            lineChart.notifyDataSetChanged()
+            lineChart.invalidate()
+        }
+        setupChartDataSets() // Datasets neu initialisieren oder sicherstellen, dass sie leer sind
+    }
 
+    private fun setupChartDataSets() {
+        val dataSets = ArrayList<ILineDataSet>()
+
+        if (binding.checkboxGyroscope.isChecked) {
+            dataSets.add(createDataSet("Gyro X", Color.RED))
+            dataSets.add(createDataSet("Gyro Y", Color.GREEN))
+            dataSets.add(createDataSet("Gyro Z", Color.BLUE))
+        }
+        if (binding.checkboxAccelerometer.isChecked) {
+            dataSets.add(createDataSet("Accel X", Color.MAGENTA))
+            dataSets.add(createDataSet("Accel Y", Color.CYAN))
+            dataSets.add(createDataSet("Accel Z", Color.YELLOW))
+        }
+
+        lineChart.data = LineData(dataSets) // (Neu) Zuweisen der Datasets
+        lineChart.invalidate()
+    }
+
+
+    private fun createDataSet(label: String, color: Int): LineDataSet {
+        val set = LineDataSet(null, label) // Initial leer
+        set.axisDependency = com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT
+        set.color = color
+        set.setDrawCircles(false) // Keine Punkte zeichnen, nur Linien
+        set.lineWidth = 1.5f
+        set.setDrawValues(false) // Keine Werte an den Punkten anzeigen
+        return set
+    }
+
+    private fun addChartEntry(eventTimeNanos: Long, x: Float, y: Float, z: Float, isGyro: Boolean) {
+        val data = lineChart.data ?: return // Chart muss Datenobjekt haben
+
+        // Zeit relativ zum Start der Sammlung in Sekunden für die X-Achse
+        val timeSeconds = TimeUnit.NANOSECONDS.toSeconds(eventTimeNanos - startTimeNanos).toFloat()
+
+        val prefix = if (isGyro) "Gyro" else "Accel"
+
+        // Füge Einträge zu den entsprechenden Datasets hinzu
+        data.addEntry(Entry(timeSeconds, x), findDataSetIndex(data, "$prefix X"))
+        data.addEntry(Entry(timeSeconds, y), findDataSetIndex(data, "$prefix Y"))
+        data.addEntry(Entry(timeSeconds, z), findDataSetIndex(data, "$prefix Z"))
+
+
+        // Begrenze die Anzahl der Einträge pro DataSet
+        limitChartEntries(data)
+    }
+
+    // Hilfsfunktion, um den Index eines Datasets anhand seines Labels zu finden
+    private fun findDataSetIndex(data: LineData, label: String) : Int {
+        for(i in 0 until data.dataSetCount) {
+            if (data.getDataSetByIndex(i).label == label) {
+                return i
+            }
+        }
+        Log.e("ChartError", "DataSet not found for label: $label")
+        return -1 // Sollte nicht passieren, wenn setupChartDataSets korrekt war
+    }
+
+    private fun limitChartEntries(data: LineData) {
+        for (set in data.dataSets) {
+            // Ist die Anzahl der Einträge größer als das Maximum?
+            if (set.entryCount > MAX_CHART_ENTRIES) {
+                // Entferne den ältesten Eintrag (am Index 0)
+                set.removeFirst() // Entfernt den Eintrag am Anfang der Liste
+            }
+        }
+        // Nach dem Entfernen müssen die X-Werte ggf. neu skaliert werden,
+        // oder man sorgt dafür, dass die X-Achse automatisch scrollt/skaliert.
+        // MPAndroidChart macht das oft automatisch, aber ggf. anpassen:
+        lineChart.xAxis.axisMinimum = data.xMin
+        lineChart.xAxis.axisMaximum = data.xMax
+    }
+
+    // --- Graph Ende ---
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
         // Wird aufgerufen, wenn sich die Genauigkeit des Sensors ändert.

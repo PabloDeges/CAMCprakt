@@ -88,17 +88,13 @@
         app:layout_constraintEnd_toEndOf="parent"
         tools:text="Gyro: [X: 0.0, Y: 0.0, Z: 0.0]\nAccel: [X: 0.0, Y: 0.0, Z: 0.0]" />
 
-    <!-- Optional: Platzhalter für den Graphen -->
-    <!-- Füge hier die View für deine Graphen-Bibliothek ein, z.B. MPAndroidChart -->
-    <!--
     <com.github.mikephil.charting.charts.LineChart
         android:id="@+id/lineChart"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
-        app:layout_constraintTop_toBottomOf="@id/tvLiveData"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@+id/tvLiveData"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="16dp"/>
-    -->
+        app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
