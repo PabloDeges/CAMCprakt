@@ -1,100 +1,94 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity"
-    android:padding="16dp">
-
-    <ToggleButton
-        android:id="@+id/toggleButtonCollect"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textOff="Start Collecting"
-        android:textOn="Stop Collecting"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <TextView
-        android:id="@+id/tvConfigLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Configuration:"
-        android:layout_marginTop="24dp"
-        android:textStyle="bold"
-        app:layout_constraintTop_toBottomOf="@id/toggleButtonCollect"
-        app:layout_constraintStart_toStartOf="parent"/>
+    android:orientation="vertical"
+    tools:context=".MainActivity">
 
     <CheckBox
         android:id="@+id/checkboxGyroscope"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Enable Gyroscope"
-        android:checked="true"
-        app:layout_constraintTop_toBottomOf="@id/tvConfigLabel"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="8dp"/>
+        android:text="Gyroscope" />
 
     <CheckBox
         android:id="@+id/checkboxAccelerometer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Enable Accelerometer"
-        android:checked="true"
-        app:layout_constraintTop_toBottomOf="@id/checkboxGyroscope"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="8dp"/>
+        android:text="Accelerometer" />
 
-    <TextView
-        android:id="@+id/tvFrequencyLabel"
+    <CheckBox
+        android:id="@+id/checkboxProximity"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Sampling Frequency:"
-        app:layout_constraintTop_toBottomOf="@id/checkboxAccelerometer"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="16dp"/>
+        android:text="Proximity Sensor" />
 
-    <Spinner
-        android:id="@+id/spinnerFrequency"
-        android:layout_width="0dp"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@id/tvFrequencyLabel"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="8dp"/>
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/button1s"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="1s" />
+
+        <Button
+            android:id="@+id/button3s"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="3s" />
+
+        <Button
+            android:id="@+id/button5s"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="5s" />
+
+        <Button
+            android:id="@+id/button10s"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="10s" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvLiveData"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Live Data: ..." />
+
+    <com.github.mikephil.charting.charts.LineChart
+        android:id="@+id/accelerationChart"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <com.github.mikephil.charting.charts.LineChart
+        android:id="@+id/tiltChart"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <ToggleButton
+        android:id="@+id/toggleButtonCollect"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textOff="Start Collection"
+        android:textOn="Stop Collection" />
 
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Status: Idle"
-        android:layout_marginTop="24dp"
-        app:layout_constraintTop_toBottomOf="@id/spinnerFrequency"
-        app:layout_constraintStart_toStartOf="parent"/>
+        android:text="Status: Stopped" />
 
-    <TextView
-        android:id="@+id/tvLiveData"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="Live Data:"
-        android:layout_marginTop="16dp"
-        android:lines="6"
-        android:gravity="top|start"
-        app:layout_constraintTop_toBottomOf="@id/tvStatus"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        tools:text="Gyro: [X: 0.0, Y: 0.0, Z: 0.0]\nAccel: [X: 0.0, Y: 0.0, Z: 0.0]" />
-
-    <com.github.mikephil.charting.charts.LineChart
-        android:id="@+id/lineChart"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        app:layout_constraintTop_toBottomOf="@+id/tvLiveData"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>
