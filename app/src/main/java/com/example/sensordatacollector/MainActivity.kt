@@ -40,9 +40,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var rotVecSensor: Sensor? = null
     private var linAccSensor: Sensor? = null
 
+    private var lastAccelerometerValues: FloatArray? = null
+    private var lastGyroscopeValues: FloatArray? = null
+
     private var isCollecting = false
     private var fileOutputStream: FileOutputStream? = null
     private val dataBuffer = StringBuilder()
+    private val flushIntervalMillis: Long = 1000L // Write every 1 second
     private var lastWriteTime = 0L
 
 
@@ -75,6 +79,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         setupSpinner()
         setupToggleButton()
+
+        prepareFileOutputStream()
+        writeHeaderToFile()
 
         // Überprüfen, ob Sensoren vorhanden sind
         binding.checkboxGravitySensor.isEnabled = (gravitySensor != null)
@@ -176,6 +183,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private fun stopCollecting() {
         if (!isCollecting) return // Schon gestoppt
 
+        // write collected data to file
+        writeToFile(dataBuffer.toString())
+
         // Listener deregistrieren
         sensorManager.unregisterListener(this) // Deregistriert alle Listener für dieses Objekt
 
@@ -206,47 +216,84 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding.spinnerFrequency.isEnabled = true
     }
 
-//    private fun prepareFileOutputStream(): Boolean {
-//        try {
-//            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-//            val fileName = "sensor_data_$timestamp.csv"
-//            // Speicherort: App-spezifisches Verzeichnis im internen Speicher
-//            // -> /data/data/com.example.sensordatacollector/files/
-//            val file = File(filesDir, fileName)
-//            fileOutputStream = FileOutputStream(file)
-//            Log.i("SensorCollector", "Saving data to: ${file.absolutePath}")
-//            Toast.makeText(this, "Saving to: ${file.name}", Toast.LENGTH_SHORT).show()
-//            return true
-//        } catch (e: IOException) {
-//            Log.e("SensorCollector", "Error creating file", e)
-//            Toast.makeText(this, "Error creating file: ${e.message}", Toast.LENGTH_LONG).show()
-//            fileOutputStream = null
-//            return false
-//        }
-//    }
-
-//    private fun writeHeaderToFile() {
-//        val header = "Timestamp_ms,SystemTime_ns,Sensor,X,Y,Z\n"
-//        try {
-//            fileOutputStream?.write(header.toByteArray())
-//        } catch (e: IOException) {
-//            Log.e("SensorCollector", "Error writing header to file", e)
-//        }
-//    }
+    private fun combineAndExportSensorData() {
+        // Ensure we have recent values from both sensors before combining
+        val accelValues = lastAccelerometerValues
+        val gyroValues = lastGyroscopeValues
+        val gyroValuesDeg = gyroValues?.map { radians -> Math.toDegrees(radians.toDouble()).toFloat() }?.toFloatArray()
 
 
-//    private fun writeToFile(data: String) {
-//        if (fileOutputStream == null) return // Nicht schreiben, wenn Datei nicht offen ist
-//
-//        try {
-//            fileOutputStream?.write(data.toByteArray())
-//        } catch (e: IOException) {
-//            Log.e("SensorCollector", "Error writing to file", e)
-//            // Optional: Sammlung stoppen oder Fehler anzeigen
-//            // stopCollecting()
-//            // runOnUiThread { Toast.makeText(this, "Error writing data!", Toast.LENGTH_SHORT).show() }
-//        }
-//    }
+        var tracktype = when {
+            binding.radioButtonG.isChecked -> "G"
+            binding.radioButtonL.isChecked -> "L"
+            binding.radioButtonR.isChecked -> "R"
+            binding.radioButtonBlank.isChecked -> "NONE"
+            else -> {
+                "NONE"
+            }
+
+        }
+
+
+
+        if (accelValues != null && gyroValues != null) {
+            val timestamp = System.currentTimeMillis()
+            val dataEntry = "$timestamp,${accelValues.joinToString(",")},${gyroValues.joinToString(",")},${gyroValuesDeg?.joinToString(",")},$tracktype\n"
+
+            dataBuffer.append(dataEntry)
+
+            // Reset the individual sensor values after combining to ensure fresh pairs
+
+            lastAccelerometerValues = null
+            lastGyroscopeValues = null
+        }
+    }
+
+    private fun prepareFileOutputStream(): Boolean {
+        try {
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val fileName = "sensor_data_$timestamp.csv"
+            // Speicherort: App-spezifisches Verzeichnis im internen Speicher
+            // -> /data/data/com.example.sensordatacollector/files/
+            val file = File(filesDir, fileName)
+            fileOutputStream = FileOutputStream(file)
+            Log.i("SensorCollector", "Saving data to: ${file.absolutePath}")
+            Toast.makeText(this, "Saving to: ${file.absolutePath}", Toast.LENGTH_SHORT).show()
+            return true
+        } catch (e: IOException) {
+            Log.e("SensorCollector", "Error creating file", e)
+            Toast.makeText(this, "Error creating file: ${e.message}", Toast.LENGTH_LONG).show()
+            fileOutputStream = null
+            return false
+        }
+    }
+
+    private fun writeHeaderToFile() {
+        val header = "did,AccelerationX,AccelerationY,AccelerationZ,GyroscopeX_Grad,GyroscopeY_Grad,GyroscopeZ_Grad,GyroscopeX_Radiant,GyroscopeY_Radiant,GyroscopeZ_Radiant,Streckentyp\n"
+        try {
+            fileOutputStream?.write(header.toByteArray())
+        } catch (e: IOException) {
+            Log.e("SensorCollector", "Error writing header to file", e)
+        }
+    }
+
+
+    private fun writeToFile(data: String) {
+
+        // Optional: Daten an Graphen senden (auch throttled!)
+        // updateChart(sensorType, timestampMs, x, y, z)
+
+        if (fileOutputStream == null) return // Nicht schreiben, wenn Datei nicht offen ist
+
+        try {
+            fileOutputStream?.write(data.toByteArray())
+        } catch (e: IOException) {
+            Log.e("SensorCollector", "Error writing to file", e)
+            // Optional: Sammlung stoppen oder Fehler anzeigen
+            // stopCollecting()
+            runOnUiThread { Toast.makeText(this, "Error writing data!", Toast.LENGTH_SHORT).show() }
+        }
+    }
 
 //    private fun flushBufferToFile() {
 //        if (dataBuffer.isNotEmpty()) {
@@ -255,15 +302,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 //        }
 //    }
 
-//    private fun closeFileOutputStream() {
-//        try {
-//            fileOutputStream?.flush()
-//            fileOutputStream?.close()
-//            fileOutputStream = null
-//        } catch (e: IOException) {
-//            Log.e("SensorCollector", "Error closing file", e)
-//        }
-//    }
+    private fun closeFileOutputStream() {
+        try {
+            fileOutputStream?.flush()
+            fileOutputStream?.close()
+            fileOutputStream = null
+        } catch (e: IOException) {
+            Log.e("SensorCollector", "Error closing file", e)
+        }
+    }
 
     // --- SensorEventListener Methoden ---
 
@@ -276,12 +323,14 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         val sensorType: String
         val values = event.values
+
         val x: Float
         val y: Float
         val z: Float
 
         when (event.sensor.type) {
             Sensor.TYPE_GYROSCOPE -> {
+                lastGyroscopeValues = values.clone()
                 sensorType = "GYRO"
                 x = values[0]
                 y = values[1]
@@ -289,18 +338,21 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 // Live-Daten (throttled)
                 if (currentTimeMs - lastGyroUpdateTime > LIVE_UPDATE_INTERVAL_MS) {
                     lastGyroUpdateTime = currentTimeMs
+                    combineAndExportSensorData()
                     runOnUiThread { // UI-Updates müssen im Main Thread erfolgen
                         binding.tvLiveData.text = updateLiveDataText("Gyro", x, y, z)
                     }
                 }
             }
             Sensor.TYPE_ACCELEROMETER -> {
+                lastAccelerometerValues = values.clone()
                 sensorType = "ACCEL"
                 x = values[0]
                 y = values[1]
                 z = values[2]
                 // Live-Daten (throttled)
                 if (currentTimeMs - lastAccelUpdateTime > LIVE_UPDATE_INTERVAL_MS) {
+                    combineAndExportSensorData()
                     lastAccelUpdateTime = currentTimeMs
                     runOnUiThread { // UI-Updates müssen im Main Thread erfolgen
                         binding.tvLiveData.text = updateLiveDataText("Accel", x, y, z)
@@ -361,53 +413,45 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             }
             else -> return // Andere Sensoren ignorieren
         }
-
-//        // Daten zum Buffer hinzufügen (Format: CSV)
-//        // Timestamp_ms,SystemTime_ns,Sensor,X,Y,Z
-//        val dataLine = "$timestampMs,$eventTimeNanos,$sensorType,${"%.6f".format(x)},${"%.6f".format(y)},${"%.6f".format(z)}\n"
-//        dataBuffer.append(dataLine)
-//
-//        // Buffer regelmäßig auf die Festplatte schreiben, um Speicher zu sparen
-//        if (currentTimeMs - lastWriteTime > WRITE_BUFFER_INTERVAL_MS) {
-//            flushBufferToFile()
-//            lastWriteTime = currentTimeMs
-//        }
-
-        // Optional: Daten an Graphen senden (auch throttled!)
-        // updateChart(sensorType, timestampMs, x, y, z)
     }
 
     // Hilfsfunktion für Live-Daten Anzeige
     private fun updateLiveDataText(sensor: String, x: Float, y: Float, z: Float): String {
         val currentText = binding.tvLiveData.text.toString().split("\n")
-        var gyroLine = if (currentText.isNotEmpty()) currentText[0] else "Gyro: ..."
+        var gyroLineRad = if (currentText.isNotEmpty()) currentText[0] else "Gyro: ..."
         var accelLine = if (currentText.size > 1) currentText[1] else "Accel: ..."
-        var linLine = if (currentText.size > 1) currentText[3] else "LinAcc: ..."
-        var gravLine = if (currentText.size > 1) currentText[2] else "Gravity: ..."
-        var RotLine = if (currentText.size > 1) currentText[4] else "RotVec: ..."
-        var magLine = if (currentText.size > 1) currentText[5] else "MagField: ..."
+//        var linLine = if (currentText.size > 1) currentText[3] else "LinAcc: ..."
+//        var gravLine = if (currentText.size > 1) currentText[2] else "Gravity: ..."
+//        var RotLine = if (currentText.size > 1) currentText[4] else "RotVec: ..."
+//        var magLine = if (currentText.size > 1) currentText[5] else "MagField: ..."
 
         val formattedData = "[X: %.2f, Y: %.2f, Z: %.2f]".format(x, y, z)
+
         if (sensor == "Gyro") {
-            gyroLine = "Gyro: $formattedData"
+            gyroLineRad = "GyroRad: $formattedData"
+
         }
         else if (sensor == "Accel") {
             accelLine = "Accel: $formattedData"
         }
-        else if (sensor == "Grav") {
-            gravLine = "Grav: $formattedData"
-        }
-        else if (sensor == "LinAcc") {
-            linLine = "LinAcc: $formattedData"
-        }
-        else if (sensor == "RotVec") {
-            RotLine = "RotVec: $formattedData"
-        }
-        else if (sensor == "MagField") {
-            magLine = "MagField: $formattedData"
-        }
+//        else if (sensor == "Grav") {
+//            gravLine = "Grav: $formattedData"
+//        }
+//        else if (sensor == "LinAcc") {
+//            linLine = "LinAcc: $formattedData"
+//        }
+//        else if (sensor == "RotVec") {
+//            RotLine = "RotVec: $formattedData"
+//        }
+//        else if (sensor == "MagField") {
+//            magLine = "MagField: $formattedData"
+//        }
+
+
+
         // Nur die ersten beiden Zeilen behalten und neu zusammensetzen
-        return "$gyroLine\n$accelLine\n$gravLine\n$linLine\n$RotLine\n$magLine"
+        // return "$gyroLine\n$accelLine\n$gravLine\n$linLine\n$RotLine\n$magLine"
+        return "$gyroLineRad\n$accelLine"
     }
 
 
@@ -451,3 +495,5 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         super.onDestroy()
     }
 }
+
+
