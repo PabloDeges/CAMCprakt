@@ -21,62 +21,6 @@
 
     />
 
-    <CheckBox
-        android:id="@+id/checkboxGyroscope"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Enable Gyroscope"
-        android:checked="true"
-        app:layout_constraintTop_toBottomOf="@id/tvConfigLabel"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="0dp"/>
-
-    <CheckBox
-        android:id="@+id/checkboxAccelerometer"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Enable Accelerometer"
-        android:checked="true"
-        app:layout_constraintTop_toBottomOf="@id/checkboxGyroscope"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="0dp"/>
-    <CheckBox
-        android:id="@+id/checkboxGravitySensor"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Enable Gravity Sensor"
-        android:checked="true"
-        app:layout_constraintTop_toBottomOf="@+id/checkboxAccelerometer"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="0dp"/>
-    <CheckBox
-        android:id="@+id/checkboxLinAccSensor"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Enable LinAcc Sensor"
-        android:checked="true"
-        app:layout_constraintTop_toBottomOf="@+id/checkboxGravitySensor"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="0dp"/>
-    <CheckBox
-        android:id="@+id/checkboxRotVecSensor"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Enable RotVec Sensor"
-        android:checked="true"
-        app:layout_constraintTop_toBottomOf="@+id/checkboxLinAccSensor"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="0dp"/>
-
-    <CheckBox
-        android:id="@+id/checkboxMagFieldSensor"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Enable MagField Sensor"
-        android:checked="true"
-        app:layout_constraintTop_toBottomOf="@+id/checkboxRotVecSensor"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="0dp"/>
 
 
     <TextView
@@ -84,7 +28,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Sampling Frequency:"
-        app:layout_constraintTop_toBottomOf="@+id/checkboxMagFieldSensor"
+        app:layout_constraintTop_toBottomOf="@+id/tvConfigLabel"
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginTop="0dp"/>
 
@@ -97,27 +41,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="4dp"/>
 
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Status: Idle"
-        android:layout_marginTop="24dp"
-        app:layout_constraintTop_toBottomOf="@id/spinnerFrequency"
-        app:layout_constraintStart_toStartOf="parent"/>
-
-    <TextView
-        android:id="@+id/tvLiveData"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="Live Data:"
-        android:layout_marginTop="0dp"
-        android:lines="6"
-        android:gravity="top|start"
-        app:layout_constraintTop_toBottomOf="@id/tvStatus"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        tools:text="Gyro: [X: 0.0, Y: 0.0, Z: 0.0]\nAccel: [X: 0.0, Y: 0.0, Z: 0.0]\nGyro: [X: 0.0, Y: 0.0, Z: 0.0]\nAccel: [X: 0.0, Y: 0.0, Z: 0.0]\nGyro: [X: 0.0, Y: 0.0, Z: 0.0]\nAccel: [X: 0.0, Y: 0.0, Z: 0.0]" />
 
     <RadioGroup
         android:id="@+id/radioGroupLRG"
@@ -163,26 +86,87 @@
         android:id="@+id/toggleButtonCollect"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:textOff="Start Collecting"
-        android:textOn="Stop Collecting"
+        android:layout_marginTop="20dp"
+        android:textOff="Start Carrera Datacollect"
+        android:textOn="Stop Carrera Datacollect"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.402"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/radioGroupLRG" />
 
+    <RadioGroup
+        android:id="@+id/radioGroupSLR2"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:layout_marginTop="30dp"
+        android:gravity="top|start"
+        android:orientation="horizontal"
+        android:visibility="visible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/toggleButtonCollect"
+        tools:visibility="visible">
 
-    <!-- Optional: Platzhalter für den Graphen -->
-    <!-- Füge hier die View für deine Graphen-Bibliothek ein, z.B. MPAndroidChart -->
-    <!--
-    <com.github.mikephil.charting.charts.LineChart
-        android:id="@+id/lineChart"
-        android:layout_width="match_parent"
-        android:layout_height="200dp"
-        app:layout_constraintTop_toBottomOf="@id/tvLiveData"
+        <RadioButton
+            android:checked="true"
+            android:id="@+id/radioButtonStehen"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Stehen" />
+
+        <RadioButton
+            android:id="@+id/radioButtonLaufen"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Laufen" />
+
+        <RadioButton
+            android:id="@+id/radioButtonRennen"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Rennen" />
+
+
+    </RadioGroup>
+
+
+    <ToggleButton
+        android:id="@+id/toggleButtonCollect2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:textOff="Start User Datacollect"
+        android:textOn="Stop User Datacollect"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.402"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/radioGroupSLR2" />
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Status: Idle"
+        android:layout_marginTop="24dp"
+        app:layout_constraintTop_toBottomOf="@id/spinnerFrequency"
+        app:layout_constraintStart_toStartOf="parent"/>
+
+    <TextView
+        android:id="@+id/tvLiveData"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Live Data:"
+        android:layout_marginTop="0dp"
+        android:lines="6"
+        android:gravity="top|start"
+        app:layout_constraintTop_toBottomOf="@id/tvStatus"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="16dp"/>
-    -->
+        tools:text="Gyro: [X: 0.0, Y: 0.0, Z: 0.0]\nAccel: [X: 0.0, Y: 0.0, Z: 0.0]\nGyro: [X: 0.0, Y: 0.0, Z: 0.0]\nAccel: [X: 0.0, Y: 0.0, Z: 0.0]\nGyro: [X: 0.0, Y: 0.0, Z: 0.0]\nAccel: [X: 0.0, Y: 0.0, Z: 0.0]" />
+
+
+
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

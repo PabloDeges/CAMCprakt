@@ -42,13 +42,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private var lastAccelerometerValues: FloatArray? = null
     private var lastGyroscopeValues: FloatArray? = null
+    private var lastGravValues: FloatArray? = null
+    private var lastLinAccValues: FloatArray? = null
+
 
     private var isCollecting = false
     private var fileOutputStream: FileOutputStream? = null
     private val dataBuffer = StringBuilder()
     private val flushIntervalMillis: Long = 1000L // Write every 1 second
     private var lastWriteTime = 0L
-
+    private var carreraMode = true // IF TRUE: EXPORT IN CARRERABAHN FORMAT, ELSE: EXPORT IN USER STAND LAUFEN ERKENNUNG FORMAT
 
     // Für das Schreiben im Hintergrund-Thread
     private var sensorHandlerThread: HandlerThread? = null
@@ -79,24 +82,22 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         setupSpinner()
         setupToggleButton()
-
-        prepareFileOutputStream()
-        writeHeaderToFile()
+        setupToggleButtonCarrera()
 
         // Überprüfen, ob Sensoren vorhanden sind
-        binding.checkboxGravitySensor.isEnabled = (gravitySensor != null)
-        binding.checkboxGyroscope.isEnabled = (gyroscope != null)
-        binding.checkboxAccelerometer.isEnabled = (accelerometer != null)
-        binding.checkboxMagFieldSensor.isEnabled = (magFieldSensor != null)
-        binding.checkboxRotVecSensor.isEnabled = (rotVecSensor != null)
-        binding.checkboxLinAccSensor.isEnabled = (linAccSensor != null)
+//        binding.checkboxGravitySensor.isEnabled = (gravitySensor != null)
+//        binding.checkboxGyroscope.isEnabled = (gyroscope != null)
+//        binding.checkboxAccelerometer.isEnabled = (accelerometer != null)
+//        binding.checkboxMagFieldSensor.isEnabled = (magFieldSensor != null)
+//        binding.checkboxRotVecSensor.isEnabled = (rotVecSensor != null)
+//        binding.checkboxLinAccSensor.isEnabled = (linAccSensor != null)
 
-        if (gyroscope == null) binding.checkboxGyroscope.text = "Gyroscope (Not available)"
-        if (accelerometer == null) binding.checkboxAccelerometer.text = "Accelerometer (Not available)"
-        if (gravitySensor == null) binding.checkboxAccelerometer.text = "GravitySensor (Not available)"
-        if (magFieldSensor == null) binding.checkboxMagFieldSensor.text = "magField (Not available)"
-        if (rotVecSensor == null) binding.checkboxRotVecSensor.text = "RotVec (Not available)"
-        if (linAccSensor == null) binding.checkboxLinAccSensor.text = "LinAcc (Not available)"
+//        if (gyroscope == null) binding.checkboxGyroscope.text = "Gyroscope (Not available)"
+//        if (accelerometer == null) binding.checkboxAccelerometer.text = "Accelerometer (Not available)"
+//        if (gravitySensor == null) binding.checkboxAccelerometer.text = "GravitySensor (Not available)"
+//        if (magFieldSensor == null) binding.checkboxMagFieldSensor.text = "magField (Not available)"
+//        if (rotVecSensor == null) binding.checkboxRotVecSensor.text = "RotVec (Not available)"
+//        if (linAccSensor == null) binding.checkboxLinAccSensor.text = "LinAcc (Not available)"
     }
 
     private fun setupSpinner() {
@@ -112,20 +113,33 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding.spinnerFrequency.setSelection(3) // Default to Normal
     }
 
-    private fun setupToggleButton() {
+    private fun setupToggleButtonCarrera() {
         binding.toggleButtonCollect.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
+                carreraMode = true
+                prepareFileOutputStream()
+                writeHeaderToFile()
                 startCollecting()
             } else {
                 stopCollecting()
             }
+            binding.toggleButtonCollect2.isEnabled = !isChecked
             // UI-Konfiguration während der Sammlung sperren/entsperren
-            binding.checkboxGyroscope.isEnabled = !isChecked && (gyroscope != null)
-            binding.checkboxGravitySensor.isEnabled = !isChecked && (gravitySensor != null)
-            binding.checkboxAccelerometer.isEnabled = !isChecked && (accelerometer != null)
-            binding.checkboxRotVecSensor.isEnabled = !isChecked && (rotVecSensor != null)
-            binding.checkboxLinAccSensor.isEnabled = !isChecked && (linAccSensor != null)
-            binding.checkboxMagFieldSensor.isEnabled = !isChecked && (magFieldSensor != null)
+            binding.spinnerFrequency.isEnabled = !isChecked
+        }
+    }
+    private fun setupToggleButton() { // für user lauf steh mode detect
+        binding.toggleButtonCollect2.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                carreraMode = false
+                prepareFileOutputStream()
+                writeHeaderToFile()
+                startCollecting()
+            } else {
+                stopCollecting()
+            }
+            binding.toggleButtonCollect.isEnabled = !isChecked
+            // UI-Konfiguration während der Sammlung sperren/entsperren
             binding.spinnerFrequency.isEnabled = !isChecked
         }
     }
@@ -138,7 +152,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             else -> SensorManager.SENSOR_DELAY_NORMAL
         }
     }
-
 
 
     private fun startCollecting() {
@@ -158,22 +171,22 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         // Listener registrieren
         sensorHandler?.post { // Registriere Listener auf dem Hintergrund-Thread
-            if (binding.checkboxGyroscope.isChecked && gyroscope != null) {
+            if ( gyroscope != null) {
                 sensorManager.registerListener(this, gyroscope, selectedFrequency, sensorHandler)
             }
-            if (binding.checkboxAccelerometer.isChecked && accelerometer != null) {
+            if (accelerometer != null) {
                 sensorManager.registerListener(this, accelerometer, selectedFrequency, sensorHandler)
             }
-            if (binding.checkboxLinAccSensor.isChecked && linAccSensor != null) {
+            if (linAccSensor != null) {
                 sensorManager.registerListener(this, linAccSensor, selectedFrequency, sensorHandler)
             }
-            if (binding.checkboxGravitySensor.isChecked && gravitySensor != null) {
+            if (gravitySensor != null) {
                 sensorManager.registerListener(this, gravitySensor, selectedFrequency, sensorHandler)
             }
-            if (binding.checkboxRotVecSensor.isChecked && rotVecSensor != null) {
+            if ( rotVecSensor != null) {
                 sensorManager.registerListener(this, rotVecSensor, selectedFrequency, sensorHandler)
             }
-            if (binding.checkboxMagFieldSensor.isChecked && magFieldSensor != null) {
+            if (magFieldSensor != null) {
                 sensorManager.registerListener(this, magFieldSensor, selectedFrequency, sensorHandler)
             }
         }
@@ -202,24 +215,22 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         isCollecting = false
         binding.tvStatus.text = "Status: Stopped"
 
-        // Verbleibende Daten im Buffer schreiben und Datei schließen
+
 
         Log.i("SensorCollector", "Stopped collecting.")
 
         // UI wieder aktivieren
-        binding.checkboxGyroscope.isEnabled = (gyroscope != null)
-        binding.checkboxAccelerometer.isEnabled = (accelerometer != null)
-        binding.checkboxMagFieldSensor.isEnabled = (magFieldSensor != null)
-        binding.checkboxGravitySensor.isEnabled = (gravitySensor != null)
-        binding.checkboxLinAccSensor.isEnabled = (linAccSensor != null)
-        binding.checkboxRotVecSensor.isEnabled = (rotVecSensor != null)
         binding.spinnerFrequency.isEnabled = true
     }
+
+
 
     private fun combineAndExportSensorData() {
         // Ensure we have recent values from both sensors before combining
         val accelValues = lastAccelerometerValues
         val gyroValues = lastGyroscopeValues
+        val gravValues = lastGravValues
+        val linAccValues = lastLinAccValues
         val gyroValuesDeg = gyroValues?.map { radians -> Math.toDegrees(radians.toDouble()).toFloat() }?.toFloatArray()
 
 
@@ -233,26 +244,57 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             }
 
         }
+        var fortbewegungsart = when {
+            binding.radioButtonStehen.isChecked -> "Stehen"
+            binding.radioButtonLaufen.isChecked -> "Laufen"
+            binding.radioButtonRennen.isChecked -> "Rennen"
+
+            else -> {
+                "NONE"
+            }
+
+        }
 
 
 
-        if (accelValues != null && gyroValues != null) {
-            val timestamp = System.currentTimeMillis()
-            val dataEntry = "$timestamp,${accelValues.joinToString(",")},${gyroValues.joinToString(",")},${gyroValuesDeg?.joinToString(",")},$tracktype\n"
+        if (carreraMode) {
+            if (accelValues != null && gyroValues != null) {
+                val timestamp = System.currentTimeMillis()
+                val dataEntry = "$timestamp,${accelValues.joinToString(",")},${gyroValues.joinToString(",")},${gyroValuesDeg?.joinToString(",")},$tracktype\n"
 
-            dataBuffer.append(dataEntry)
+                dataBuffer.append(dataEntry)
 
-            // Reset the individual sensor values after combining to ensure fresh pairs
+                // Reset the individual sensor values after combining to ensure fresh pairs
 
-            lastAccelerometerValues = null
-            lastGyroscopeValues = null
+                lastAccelerometerValues = null
+                lastGyroscopeValues = null
+            }
+        }
+        else{
+            if (accelValues != null && gyroValues != null && gravValues != null && linAccValues != null) {
+                val timestamp = System.currentTimeMillis()
+                val dataEntry = "$timestamp,${accelValues.joinToString(",")},${gyroValues.joinToString(",")},${gravValues.joinToString(",")},${linAccValues.joinToString(",")},$fortbewegungsart\n"
+
+                dataBuffer.append(dataEntry)
+
+                // Reset the individual sensor values after combining to ensure fresh pairs
+
+                lastAccelerometerValues = null
+                lastGyroscopeValues = null
+            }
         }
     }
 
     private fun prepareFileOutputStream(): Boolean {
         try {
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val fileName = "sensor_data_$timestamp.csv"
+            val timestamp = SimpleDateFormat("MMdd_HHmmss", Locale.getDefault()).format(Date())
+            var fileName: String
+            if(carreraMode) {
+                fileName = "carrera_sensor_$timestamp.csv"
+            }
+            else {
+                fileName = "humanactivity_sensor_$timestamp.csv"
+            }
             // Speicherort: App-spezifisches Verzeichnis im internen Speicher
             // -> /data/data/com.example.sensordatacollector/files/
             val file = File(filesDir, fileName)
@@ -269,7 +311,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     private fun writeHeaderToFile() {
-        val header = "did,AccelerationX,AccelerationY,AccelerationZ,GyroscopeX_Grad,GyroscopeY_Grad,GyroscopeZ_Grad,GyroscopeX_Radiant,GyroscopeY_Radiant,GyroscopeZ_Radiant,Streckentyp\n"
+        var header: String
+        if(carreraMode) {
+            header = "did,AccelerationX,AccelerationY,AccelerationZ,GyroscopeX_Grad,GyroscopeY_Grad,GyroscopeZ_Grad,GyroscopeX_Radiant,GyroscopeY_Radiant,GyroscopeZ_Radiant,Streckentyp\n"
+        }
+        else {
+            header = "did,AccelerationX,AccelerationY,AccelerationZ,GyroscopeX_Radiant,GyroscopeY_Radiant,GyroscopeZ_Radiant,GravityX,GravityY,GravityZ,LinearAccelerationX,LinearAccelerationY,LinearAccelerationZ,Fortbewegungsart\n"
+        }
         try {
             fileOutputStream?.write(header.toByteArray())
         } catch (e: IOException) {
@@ -360,12 +408,14 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 }
             }
             Sensor.TYPE_GRAVITY -> {
+                lastGravValues = values.clone()
                 sensorType = "GRAV"
                 x = values[0]
                 y = values[1]
                 z = values[2]
                 // Live-Daten (throttled)
                 if (currentTimeMs - lastGravUpdateTime > LIVE_UPDATE_INTERVAL_MS) {
+                    combineAndExportSensorData()
                     lastGravUpdateTime = currentTimeMs
                     runOnUiThread { // UI-Updates müssen im Main Thread erfolgen
                         binding.tvLiveData.text = updateLiveDataText("Grav", x, y, z)
@@ -373,13 +423,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 }
             }
             Sensor.TYPE_LINEAR_ACCELERATION -> {
+                lastLinAccValues = values.clone()
                 sensorType = "LINACC"
                 x = values[0]
                 y = values[1]
                 z = values[2]
                 // Live-Daten (throttled)
                 if (currentTimeMs - lastLinAccUpdateTime > LIVE_UPDATE_INTERVAL_MS) {
+                    combineAndExportSensorData()
                     lastLinAccUpdateTime = currentTimeMs
+
                     runOnUiThread { // UI-Updates müssen im Main Thread erfolgen
                         binding.tvLiveData.text = updateLiveDataText("LinAcc", x, y, z)
                     }
@@ -420,38 +473,31 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val currentText = binding.tvLiveData.text.toString().split("\n")
         var gyroLineRad = if (currentText.isNotEmpty()) currentText[0] else "Gyro: ..."
         var accelLine = if (currentText.size > 1) currentText[1] else "Accel: ..."
-//        var linLine = if (currentText.size > 1) currentText[3] else "LinAcc: ..."
-//        var gravLine = if (currentText.size > 1) currentText[2] else "Gravity: ..."
-//        var RotLine = if (currentText.size > 1) currentText[4] else "RotVec: ..."
-//        var magLine = if (currentText.size > 1) currentText[5] else "MagField: ..."
+        var linLine = if (currentText.size > 1) currentText[3] else "LinAcc: ..."
+        var gravLine = if (currentText.size > 1) currentText[2] else "Gravity: ..."
+
 
         val formattedData = "[X: %.2f, Y: %.2f, Z: %.2f]".format(x, y, z)
 
         if (sensor == "Gyro") {
             gyroLineRad = "GyroRad: $formattedData"
-
         }
         else if (sensor == "Accel") {
             accelLine = "Accel: $formattedData"
         }
-//        else if (sensor == "Grav") {
-//            gravLine = "Grav: $formattedData"
-//        }
-//        else if (sensor == "LinAcc") {
-//            linLine = "LinAcc: $formattedData"
-//        }
-//        else if (sensor == "RotVec") {
-//            RotLine = "RotVec: $formattedData"
-//        }
-//        else if (sensor == "MagField") {
-//            magLine = "MagField: $formattedData"
-//        }
+        else if (sensor == "Grav") {
+            gravLine = "Grav: $formattedData"
+        }
+        else if (sensor == "LinAcc") {
+            linLine = "LinAcc: $formattedData"
+        }
+
 
 
 
         // Nur die ersten beiden Zeilen behalten und neu zusammensetzen
         // return "$gyroLine\n$accelLine\n$gravLine\n$linLine\n$RotLine\n$magLine"
-        return "$gyroLineRad\n$accelLine"
+        return "$gyroLineRad\n$accelLine\n$gravLine\n$linLine"
     }
 
 
