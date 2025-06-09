@@ -26,6 +26,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.FileReader
 import java.io.FileWriter
+import kotlin.math.pow
 
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
@@ -273,7 +274,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         else{
             if (accelValues != null && gyroValues != null && gravValues != null && linAccValues != null) {
                 val timestamp = System.currentTimeMillis()
-                val dataEntry = "$timestamp,${accelValues.joinToString(",")},${gyroValues.joinToString(",")},${gravValues.joinToString(",")},${linAccValues.joinToString(",")},$fortbewegungsart\n"
+                var accelMean = accelValues.average().toFloat()
+                var accelStdDev = accelValues.map { (it - accelMean).toDouble().pow(2.0).toFloat() }.average().toFloat()
+                var accelMin = accelValues.minOrNull() ?: 0f
+                var accelMax = accelValues.maxOrNull() ?: 0f
+                var gyroMean = gyroValues.average().toFloat()
+                var gyroStdDev = gyroValues.map { (it - gyroMean).toDouble().pow(2.0).toFloat() }.average().toFloat()
+                var gyroMin = gyroValues.minOrNull() ?: 0f
+                var gyroMax = gyroValues.maxOrNull() ?: 0f
+
+                val dataEntry = "$timestamp,${accelMean},${accelStdDev},${accelMin},${accelMax},${gyroMean},${gyroStdDev},${gyroMin},${gyroMax},$fortbewegungsart\n"
 
                 dataBuffer.append(dataEntry)
 
@@ -316,7 +326,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             header = "did,AccelerationX,AccelerationY,AccelerationZ,GyroscopeX_Grad,GyroscopeY_Grad,GyroscopeZ_Grad,GyroscopeX_Radiant,GyroscopeY_Radiant,GyroscopeZ_Radiant,Streckentyp\n"
         }
         else {
-            header = "did,AccelerationX,AccelerationY,AccelerationZ,GyroscopeX_Radiant,GyroscopeY_Radiant,GyroscopeZ_Radiant,GravityX,GravityY,GravityZ,LinearAccelerationX,LinearAccelerationY,LinearAccelerationZ,Fortbewegungsart\n"
+            header = "did,AccelerationMean,AccelerationStdDev,AccelerationMin,AccelerationMax,GyroscopeMean,GyroscopeStdDev,GyroscopeMin,GyroscopeMax,Fortbewegungsart\n"
+
         }
         try {
             fileOutputStream?.write(header.toByteArray())
