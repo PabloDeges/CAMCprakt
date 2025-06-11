@@ -24,6 +24,7 @@ import android.content.SharedPreferences
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.io.BufferedReader
 import java.io.FileReader
 import java.io.FileWriter
 import kotlin.math.pow
@@ -40,11 +41,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var magFieldSensor: Sensor? = null
     private var rotVecSensor: Sensor? = null
     private var linAccSensor: Sensor? = null
+    private var fileName = "none"
 
     private var lastAccelerometerValues: FloatArray? = null
     private var lastGyroscopeValues: FloatArray? = null
     private var lastGravValues: FloatArray? = null
     private var lastLinAccValues: FloatArray? = null
+
+    var currentTimeMs = System.currentTimeMillis()
+    var lastClassifyUpdateTime = 0L
+
 
 
     private var isCollecting = false
@@ -194,11 +200,66 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         Log.i("SensorCollector", "Started collecting.")
     }
 
+    fun findeHaeufigsteAktivitaet(aktivitaetenListe: MutableList<Aktivitaet>): Aktivitaet? {
+        if (aktivitaetenListe.isEmpty()) {
+            return null // Keine Aktivitäten in der Liste
+        }
+
+        // 1. Gruppiere die Aktivitäten und zähle ihre Vorkommen
+        // Das Ergebnis ist eine Map<Aktivitaet, Int>, wobei Int die Anzahl ist.
+        val aktivitaetCounts = aktivitaetenListe.groupingBy { it }.eachCount()
+
+        // Debug-Ausgabe (optional)
+        // println("Aktivitätszählungen: $aktivitaetCounts")
+
+        // 2. Finde den Eintrag in der Map mit dem höchsten Zählwert
+        // maxByOrNull gibt den Eintrag (Map.Entry<Aktivitaet, Int>) zurück,
+        // dessen Wert (it.value, also die Anzahl) maximal ist.
+        val haeufigsteEintrag = aktivitaetCounts.entries.maxByOrNull { it.value }
+
+        // 3. Gib den Schlüssel (die Aktivitaet) dieses Eintrags zurück
+        return haeufigsteEintrag?.key
+    }
+
+
+
+    private fun meanPrimaryActivity() :String{
+
+        var activityGuesses: MutableList<Aktivitaet> = mutableListOf()
+        activityGuesses.add(Aktivitaet.ShowHistory)
+
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, activityGuesses)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerAktivitaet.adapter = adapter
+
+        var sensordatenListe = readSensorDataFromCsv(File(filesDir, fileName))
+        for (daten in sensordatenListe) {
+            var current = klassifiziereAktivitaet(daten)
+            activityGuesses += current
+
+
+        }
+        adapter.notifyDataSetChanged()
+
+        var guess = findeHaeufigsteAktivitaet(activityGuesses)
+
+
+
+
+        return "Wahrscheinlichste UserActivity: $guess"
+
+    }
+
     private fun stopCollecting() {
         if (!isCollecting) return // Schon gestoppt
 
         // write collected data to file
         writeToFile(dataBuffer.toString())
+
+        binding.guessedUserAct.text = meanPrimaryActivity()
+
+
+
 
         // Listener deregistrieren
         sensorManager.unregisterListener(this) // Deregistriert alle Listener für dieses Objekt
@@ -233,6 +294,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val gravValues = lastGravValues
         val linAccValues = lastLinAccValues
         val gyroValuesDeg = gyroValues?.map { radians -> Math.toDegrees(radians.toDouble()).toFloat() }?.toFloatArray()
+
 
 
         var tracktype = when {
@@ -286,6 +348,12 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 val dataEntry = "$timestamp,${accelMean},${accelStdDev},${accelMin},${accelMax},${gyroMean},${gyroStdDev},${gyroMin},${gyroMax},$fortbewegungsart\n"
 
                 dataBuffer.append(dataEntry)
+                var daten = Sensordaten(accelMean, accelStdDev, accelMin, accelMax, gyroMean, gyroStdDev, gyroMin, gyroMax)
+                var current = klassifiziereAktivitaet(daten)
+
+                    runOnUiThread { binding.spinnerAktivitaetLabel.text = "${System.currentTimeMillis()} -  $current"}
+
+
 
                 // Reset the individual sensor values after combining to ensure fresh pairs
 
@@ -298,7 +366,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private fun prepareFileOutputStream(): Boolean {
         try {
             val timestamp = SimpleDateFormat("MMdd_HHmmss", Locale.getDefault()).format(Date())
-            var fileName: String
+
             if(carreraMode) {
                 fileName = "carrera_sensor_$timestamp.csv"
             }
@@ -550,6 +618,650 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         // Beende den Handler Thread explizit, falls er noch läuft
         sensorHandlerThread?.quitSafely()
         super.onDestroy()
+    }
+
+    fun readSensorDataFromCsv(
+        csvFile: File,
+        delimiter: Char = ',',
+        skipHeader: Boolean = true
+    ): List<Sensordaten> {
+        val sensorDataList = mutableListOf<Sensordaten>()
+
+        if (!csvFile.exists() || !csvFile.canRead()) {
+            println("Fehler: CSV-Datei existiert nicht oder kann nicht gelesen werden: ${csvFile.absolutePath}")
+            return emptyList()
+        }
+
+        try {
+            BufferedReader(FileReader(csvFile)).use { reader ->
+                var line: String?
+                if (skipHeader) {
+                    reader.readLine() // Kopfzeile lesen und verwerfen
+                }
+                while (reader.readLine().also { line = it } != null) {
+                    val parts = line!!.split(delimiter)
+                    try {
+                        // Annahme: Die Reihenfolge der Spalten in der CSV entspricht den Parametern von Sensordaten
+                        // Passen Sie die Indizes und Typkonvertierungen ggf. an Ihre CSV-Struktur an!
+                        if (parts.size >= 10) { // Mindestens die erforderlichen Felder + timestamp und class
+                            val amean = parts[1].trim().toFloat()
+                            val asd = parts[2].trim().toFloat()
+                            val amin = parts[3].trim().toFloat()
+                            val amax = parts[4].trim().toFloat()
+                            val gmean = parts[5].trim().toFloat()
+                            val gsd = parts[6].trim().toFloat()
+                            val gmin = parts[7].trim().toFloat()
+                            val gmax = parts[8].trim().toFloat()
+
+
+                            sensorDataList.add(
+                                Sensordaten (
+                                    GyroscopeStdDev = gsd,
+                                AccelerationMin = amin,
+                            GyroscopeMean = gmean,
+                            AccelerationMax = amax, AccelerationMean = amean,
+                            AccelerationStdDev = asd,
+                            GyroscopeMin = gmin,
+                            GyroscopeMax = gmax,
+                                )
+                            )
+                        } else {
+                            println("Warnung: Zeile übersprungen, da nicht genügend Spalten: $line")
+                        }
+                    } catch (e: NumberFormatException) {
+                        println("Warnung: Zeile übersprungen aufgrund eines Zahlenformatfehlers: $line - Fehler: ${e.message}")
+                    } catch (e: IndexOutOfBoundsException) {
+                        println("Warnung: Zeile übersprungen aufgrund fehlender Spalten: $line - Fehler: ${e.message}")
+                    }
+                }
+            }
+        } catch (e: IOException) {
+            println("Fehler beim Lesen der CSV-Datei: ${e.message}")
+            e.printStackTrace() // Für detailliertere Fehlersuche
+            return emptyList() // Bei schwerwiegenden IO-Fehlern leere Liste zurückgeben
+        }
+
+        return sensorDataList
+    }
+
+    enum class Aktivitaet {
+        Rennen,
+        Laufen,
+        Stehen,
+        ShowHistory
+    }
+
+    /**
+     * Datenklasse zur Aufnahme der Sensor-Merkmale.
+     * Alle Werte sind Double, da die Regeln Dezimalzahlen enthalten.
+     */
+    data class Sensordaten(
+        val AccelerationMean: Float,
+        val AccelerationStdDev: Float,
+        val AccelerationMin: Float,
+        val AccelerationMax: Float,
+        val GyroscopeMean: Float,
+        val GyroscopeStdDev: Float,
+        val GyroscopeMin: Float,
+        val GyroscopeMax: Float
+    )
+
+    /**
+     * Klassifiziert die Aktivität basierend auf den bereitgestellten Sensor-Merkmalen
+     * und den übersetzten J48-Entscheidungsbaum-Regeln.
+     *
+     * @param daten Eine Instanz der Sensordaten-Klasse, die alle benötigten Merkmale enthält.
+     * @return Die klassifizierte Aktivität (Rennen, Laufen, Stehen) oder Unbekannt.
+     */
+    fun klassifiziereAktivitaet(daten: Sensordaten): Aktivitaet {
+        // Top-Level-Regel: GyroscopeStdDev
+        if (daten.GyroscopeStdDev <= 0.078208) {
+            if (daten.AccelerationMin <= -6.745663) {
+                if (daten.GyroscopeMean <= 0.349619) {
+                    if (daten.AccelerationMin <= -10.316615) {
+                        if (daten.AccelerationMin <= -11.549629) {
+                            if (daten.AccelerationMax <= 0.150835) {
+                                return Aktivitaet.Rennen
+                            } else {
+                                if (daten.AccelerationMean <= -3.157952) {
+                                    return Aktivitaet.Laufen
+                                } else {
+                                    if (daten.AccelerationMean <= -1.926933) {
+                                        return Aktivitaet.Stehen
+                                    } else {
+                                        return Aktivitaet.Laufen
+                                    }
+                                }
+                            }
+                        } else { // AccelerationMin > -11.549629
+                            if (daten.AccelerationMean <= -4.112441) {
+                                return Aktivitaet.Laufen
+                            } else {
+                                return Aktivitaet.Stehen
+                            }
+                        }
+                    } else { // AccelerationMin > -10.316615
+                        if (daten.GyroscopeStdDev <= 0.030954) {
+                            return Aktivitaet.Stehen
+                        } else { // GyroscopeStdDev > 0.030954
+                            if (daten.GyroscopeMean <= -0.889216) {
+                                return Aktivitaet.Laufen
+                            } else { // GyroscopeMean > -0.889216
+                                if (daten.AccelerationStdDev <= 15.872898) {
+                                    if (daten.AccelerationMean <= -3.872621) {
+                                        return Aktivitaet.Stehen
+                                    } else {
+                                        return Aktivitaet.Laufen
+                                    }
+                                } else { // AccelerationStdDev > 15.872898
+                                    return Aktivitaet.Stehen
+                                }
+                            }
+                        }
+                    }
+                } else { // GyroscopeMean > 0.349619
+                    if (daten.AccelerationStdDev <= 10.6532) {
+                        return Aktivitaet.Stehen
+                    } else {
+                        return Aktivitaet.Laufen
+                    }
+                }
+            } else { // AccelerationMin > -6.745663
+                if (daten.AccelerationMax <= 8.157045) {
+                    if (daten.AccelerationMin <= -0.895431) {
+                        if (daten.GyroscopeMin <= -0.80283) {
+                            return Aktivitaet.Laufen
+                        } else { // GyroscopeMin > -0.80283
+                            if (daten.GyroscopeMax <= 0.312763) {
+                                if (daten.GyroscopeStdDev <= 0.024373) {
+                                    return Aktivitaet.Stehen
+                                } else { // GyroscopeStdDev > 0.024373
+                                    if (daten.AccelerationMean <= 2.595315) {
+                                        return Aktivitaet.Laufen
+                                    } else {
+                                        return Aktivitaet.Stehen
+                                    }
+                                }
+                            } else { // GyroscopeMax > 0.312763
+                                if (daten.GyroscopeStdDev <= 0.046356) {
+                                    return Aktivitaet.Laufen
+                                } else {
+                                    return Aktivitaet.Rennen
+                                }
+                            }
+                        }
+                    } else { // AccelerationMin > -0.895431
+                        if (daten.AccelerationMin <= 1.58975) {
+                            return Aktivitaet.Rennen
+                        } else {
+                            return Aktivitaet.Laufen
+                        }
+                    }
+                } else { // AccelerationMax > 8.157045
+                    if (daten.GyroscopeMin <= -0.060628) {
+                        if (daten.GyroscopeMean <= -0.217875) {
+                            if (daten.GyroscopeMax <= -0.240834) {
+                                return Aktivitaet.Rennen
+                            } else { // GyroscopeMax > -0.240834
+                                if (daten.AccelerationMean <= 4.427278) {
+                                    return Aktivitaet.Stehen
+                                } else {
+                                    if (daten.AccelerationStdDev <= 12.519543) {
+                                        return Aktivitaet.Stehen
+                                    } else {
+                                        return Aktivitaet.Rennen
+                                    }
+                                }
+                            }
+                        } else { // GyroscopeMean > -0.217875
+                            if (daten.AccelerationStdDev <= 17.266388) {
+                                if (daten.GyroscopeMax <= 0.17822) {
+                                    return Aktivitaet.Stehen
+                                } else { // GyroscopeMax > 0.17822
+                                    if (daten.AccelerationMax <= 8.829816) {
+                                        return Aktivitaet.Laufen
+                                    } else {
+                                        return Aktivitaet.Stehen
+                                    }
+                                }
+                            } else { // AccelerationStdDev > 17.266388
+                                if (daten.AccelerationMax <= 8.822633) {
+                                    return Aktivitaet.Stehen
+                                } else {
+                                    return Aktivitaet.Laufen
+                                }
+                            }
+                        }
+                    } else { // GyroscopeMin > -0.060628
+                        if (daten.AccelerationMax <= 9.200917) {
+                            if (daten.AccelerationStdDev <= 12.221857) {
+                                if (daten.AccelerationStdDev <= 10.543983) {
+                                    return Aktivitaet.Laufen
+                                } else { // AccelerationStdDev > 10.543983
+                                    if (daten.AccelerationMean <= 4.451619) {
+                                        if (daten.AccelerationMean <= 4.391365) {
+                                            return Aktivitaet.Stehen
+                                        } else {
+                                            return Aktivitaet.Laufen
+                                        }
+                                    } else { // AccelerationMean > 4.451619
+                                        return Aktivitaet.Stehen
+                                    }
+                                }
+                            } else { // AccelerationStdDev > 12.221857
+                                if (daten.GyroscopeMax <= 0.128893) {
+                                    return Aktivitaet.Laufen
+                                } else { // GyroscopeMax > 0.128893
+                                    if (daten.AccelerationMean <= 3.31597) {
+                                        return Aktivitaet.Laufen
+                                    } else {
+                                        return Aktivitaet.Stehen
+                                    }
+                                }
+                            }
+                        } else { // AccelerationMax > 9.200917
+                            if (daten.GyroscopeMin <= 0.162337) {
+                                if (daten.AccelerationStdDev <= 13.338376) {
+                                    return Aktivitaet.Laufen
+                                } else {
+                                    return Aktivitaet.Stehen
+                                }
+                            } else { // GyroscopeMin > 0.162337
+                                return Aktivitaet.Laufen
+                            }
+                        }
+                    }
+                }
+            }
+        } else { // GyroscopeStdDev > 0.078208
+            if (daten.GyroscopeMin <= -4.647921) {
+                if (daten.AccelerationMin <= -11.152191) {
+                    if (daten.GyroscopeStdDev <= 6.410218) {
+                        if (daten.AccelerationMax <= 1.595735) {
+                            return Aktivitaet.Rennen
+                        } else {
+                            return Aktivitaet.Laufen
+                        }
+                    } else { // GyroscopeStdDev > 6.410218
+                        return Aktivitaet.Rennen
+                    }
+                } else { // AccelerationMin > -11.152191
+                    return Aktivitaet.Rennen
+                }
+            } else { // GyroscopeMin > -4.647921
+                if (daten.AccelerationMean <= -9.143456) {
+                    if (daten.GyroscopeStdDev <= 0.528013) {
+                        if (daten.GyroscopeMean <= 0.967407) {
+                            if (daten.AccelerationMean <= -12.867238) {
+                                if (daten.AccelerationMax <= -0.751779) {
+                                    return Aktivitaet.Rennen
+                                } else {
+                                    return Aktivitaet.Laufen
+                                }
+                            } else { // AccelerationMean > -12.867238
+                                return Aktivitaet.Laufen
+                            }
+                        } else { // GyroscopeMean > 0.967407
+                            return Aktivitaet.Rennen
+                        }
+                    } else { // GyroscopeStdDev > 0.528013
+                        return Aktivitaet.Rennen
+                    }
+                } else { // AccelerationMean > -9.143456
+                    if (daten.GyroscopeMax <= 4.508185) {
+                        if (daten.AccelerationMean <= 1.611298) {
+                            if (daten.GyroscopeStdDev <= 0.79118) {
+                                if (daten.AccelerationMin <= -11.134235) {
+                                    return Aktivitaet.Laufen
+                                } else { // AccelerationMin > -11.134235
+                                    if (daten.AccelerationMin <= -7.547721) {
+                                        if (daten.GyroscopeMean <= 0.456724) {
+                                            if (daten.GyroscopeMean <= -0.554666) {
+                                                return Aktivitaet.Laufen
+                                            } else { // GyroscopeMean > -0.554666
+                                                if (daten.AccelerationMean <= -0.49161) {
+                                                    if (daten.AccelerationMax <= 3.46441) {
+                                                        if (daten.GyroscopeMean <= -0.259821) {
+                                                            if (daten.AccelerationMin <= -8.913613) {
+                                                                if (daten.GyroscopeMean <= -0.416814) {
+                                                                    return Aktivitaet.Stehen
+                                                                } else {
+                                                                    return Aktivitaet.Laufen
+                                                                }
+                                                            } else { // AccelerationMin > -8.913613
+                                                                if (daten.AccelerationMean <= -2.205459) {
+                                                                    return Aktivitaet.Rennen
+                                                                } else {
+                                                                    return Aktivitaet.Laufen
+                                                                }
+                                                            }
+                                                        } else { // GyroscopeMean > -0.259821
+                                                            if (daten.GyroscopeStdDev <= 0.502538) {
+                                                                return Aktivitaet.Stehen
+                                                            } else {
+                                                                return Aktivitaet.Laufen
+                                                            }
+                                                        }
+                                                    } else { // AccelerationMax > 3.46441
+                                                        if (daten.GyroscopeMean <= 0.218282) {
+                                                            return Aktivitaet.Stehen
+                                                        } else { // GyroscopeMean > 0.218282
+                                                            if (daten.GyroscopeStdDev <= 0.363193) {
+                                                                return Aktivitaet.Laufen
+                                                            } else {
+                                                                return Aktivitaet.Stehen
+                                                            }
+                                                        }
+                                                    }
+                                                } else { // AccelerationMean > -0.49161
+                                                    return Aktivitaet.Laufen
+                                                }
+                                            }
+                                        } else { // GyroscopeMean > 0.456724
+                                            if (daten.GyroscopeMean <= 0.488692) {
+                                                return Aktivitaet.Rennen
+                                            } else { // GyroscopeMean > 0.488692
+                                                if (daten.GyroscopeMean <= 2.144952) {
+                                                    return Aktivitaet.Laufen
+                                                } else {
+                                                    return Aktivitaet.Rennen
+                                                }
+                                            }
+                                        }
+                                    } else { // AccelerationMin > -7.547721
+                                        if (daten.AccelerationStdDev <= 13.053646) {
+                                            if (daten.GyroscopeStdDev <= 0.162174) {
+                                                if (daten.AccelerationMean <= -3.20025) {
+                                                    return Aktivitaet.Rennen
+                                                } else {
+                                                    return Aktivitaet.Laufen
+                                                }
+                                            } else { // GyroscopeStdDev > 0.162174
+                                                return Aktivitaet.Laufen
+                                            }
+                                        } else { // AccelerationStdDev > 13.053646
+                                            if (daten.GyroscopeStdDev <= 0.327222) {
+                                                return Aktivitaet.Laufen
+                                            } else { // GyroscopeStdDev > 0.327222
+                                                if (daten.AccelerationMin <= -5.374983) {
+                                                    if (daten.AccelerationMin <= -5.762844) {
+                                                        if (daten.GyroscopeMean <= 0.424551) {
+                                                            if (daten.AccelerationStdDev <= 28.296442) {
+                                                                if (daten.GyroscopeMean <= 0.162083) {
+                                                                    return Aktivitaet.Laufen
+                                                                } else {
+                                                                    return Aktivitaet.Stehen
+                                                                }
+                                                            } else { // AccelerationStdDev > 28.296442
+                                                                return Aktivitaet.Stehen
+                                                            }
+                                                        } else { // GyroscopeMean > 0.424551
+                                                            return Aktivitaet.Laufen
+                                                        }
+                                                    } else { // AccelerationMin > -5.762844
+                                                        return Aktivitaet.Stehen
+                                                    }
+                                                } else { // AccelerationMin > -5.374983
+                                                    if (daten.AccelerationMean <= 0.381875) {
+                                                        return Aktivitaet.Rennen
+                                                    } else {
+                                                        return Aktivitaet.Laufen
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else { // GyroscopeStdDev > 0.79118
+                                if (daten.AccelerationStdDev <= 3.06026) {
+                                    if (daten.GyroscopeStdDev <= 2.988615) {
+                                        if (daten.GyroscopeMean <= 0.693332) {
+                                            return Aktivitaet.Laufen
+                                        } else {
+                                            return Aktivitaet.Rennen
+                                        }
+                                    } else { // GyroscopeStdDev > 2.988615
+                                        return Aktivitaet.Rennen
+                                    }
+                                } else { // AccelerationStdDev > 3.06026
+                                    if (daten.GyroscopeStdDev <= 2.350206) {
+                                        if (daten.AccelerationStdDev <= 11.291626) {
+                                            if (daten.GyroscopeMean <= 0.920167) {
+                                                if (daten.AccelerationMax <= 4.748899) {
+                                                    return Aktivitaet.Laufen
+                                                } else {
+                                                    return Aktivitaet.Rennen
+                                                }
+                                            } else { // GyroscopeMean > 0.920167
+                                                return Aktivitaet.Rennen
+                                            }
+                                        } else { // AccelerationStdDev > 11.291626
+                                            if (daten.AccelerationMin <= -6.908469) {
+                                                return Aktivitaet.Laufen
+                                            } else { // AccelerationMin > -6.908469
+                                                if (daten.AccelerationStdDev <= 13.09557) {
+                                                    return Aktivitaet.Laufen
+                                                } else {
+                                                    return Aktivitaet.Rennen
+                                                }
+                                            }
+                                        }
+                                    } else { // GyroscopeStdDev > 2.350206
+                                        if (daten.AccelerationMin <= -7.25084) {
+                                            if (daten.AccelerationMean <= -6.194199) {
+                                                if (daten.AccelerationMax <= 4.086902) {
+                                                    return Aktivitaet.Rennen
+                                                } else {
+                                                    return Aktivitaet.Laufen
+                                                }
+                                            } else { // AccelerationMean > -6.194199
+                                                return Aktivitaet.Laufen
+                                            }
+                                        } else { // AccelerationMin > -7.25084
+                                            if (daten.GyroscopeMean <= -0.659938) {
+                                                if (daten.AccelerationMax <= 1.466449) {
+                                                    return Aktivitaet.Laufen
+                                                } else { // AccelerationMax > 1.466449
+                                                    if (daten.GyroscopeStdDev <= 4.380723) {
+                                                        return Aktivitaet.Rennen
+                                                    } else {
+                                                        return Aktivitaet.Stehen
+                                                    }
+                                                }
+                                            } else { // GyroscopeMean > -0.659938
+                                                if (daten.AccelerationMean <= -1.474828) {
+                                                    if (daten.GyroscopeMax <= 1.806329) {
+                                                        return Aktivitaet.Laufen
+                                                    } else { // GyroscopeMax > 1.806329
+                                                        if (daten.AccelerationStdDev <= 5.592368) {
+                                                            if (daten.AccelerationMean <= -1.811613) {
+                                                                return Aktivitaet.Laufen
+                                                            } else {
+                                                                return Aktivitaet.Rennen
+                                                            }
+                                                        } else {
+                                                            return Aktivitaet.Rennen
+                                                        }
+                                                    }
+                                                } else { // AccelerationMean > -1.474828
+                                                    return Aktivitaet.Laufen
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else { // AccelerationMean > 1.611298
+                            if (daten.AccelerationStdDev <= 64.68753) {
+                                if (daten.GyroscopeMean <= -0.781704) {
+                                    if (daten.AccelerationMin <= -5.292383) {
+                                        return Aktivitaet.Laufen
+                                    } else {
+                                        return Aktivitaet.Rennen
+                                    }
+                                } else { // GyroscopeMean > -0.781704
+                                    if (daten.GyroscopeMax <= 1.737453) {
+                                        if (daten.AccelerationMax <= 10.147824) {
+                                            if (daten.AccelerationMean <= 4.14955) {
+                                                if (daten.GyroscopeMax <= 1.096045) {
+                                                    if (daten.GyroscopeMean <= -0.213599) {
+                                                        if (daten.GyroscopeStdDev <= 1.130474) {
+                                                            return Aktivitaet.Laufen
+                                                        } else {
+                                                            return Aktivitaet.Rennen
+                                                        }
+                                                    } else { // GyroscopeMean > -0.213599
+                                                        if (daten.AccelerationMax <= 6.117185) {
+                                                            return Aktivitaet.Rennen
+                                                        } else { // AccelerationMax > 6.117185
+                                                            if (daten.AccelerationMax <= 8.499416) {
+                                                                if (daten.AccelerationMax <= 7.924808) {
+                                                                    if (daten.GyroscopeMean <= -0.163916) {
+                                                                        return Aktivitaet.Stehen
+                                                                    } else { // GyroscopeMean > -0.163916
+                                                                        if (daten.GyroscopeMin <= -0.465327) {
+                                                                            return Aktivitaet.Laufen
+                                                                        } else { // GyroscopeMin > -0.465327
+                                                                            if (daten.GyroscopeStdDev <= 0.09166) {
+                                                                                return Aktivitaet.Laufen
+                                                                            } else {
+                                                                                return Aktivitaet.Stehen
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                } else { // AccelerationMax > 7.924808
+                                                                    return Aktivitaet.Stehen
+                                                                }
+                                                            } else { // AccelerationMax > 8.499416
+                                                                if (daten.AccelerationMin <= -0.814029) {
+                                                                    if (daten.GyroscopeMean <= 0.094073) {
+                                                                        return Aktivitaet.Rennen
+                                                                    } else {
+                                                                        return Aktivitaet.Laufen
+                                                                    }
+                                                                } else { // AccelerationMin > -0.814029
+                                                                    return Aktivitaet.Laufen
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                } else { // GyroscopeMax > 1.096045
+                                                    if (daten.GyroscopeMax <= 1.3465) {
+                                                        if (daten.AccelerationStdDev <= 5.994978) {
+                                                            return Aktivitaet.Laufen
+                                                        } else {
+                                                            return Aktivitaet.Stehen
+                                                        }
+                                                    } else { // GyroscopeMax > 1.3465
+                                                        return Aktivitaet.Laufen
+                                                    }
+                                                }
+                                            } else { // AccelerationMean > 4.14955
+                                                if (daten.AccelerationMax <= 8.561666) {
+                                                    if (daten.GyroscopeMin <= -0.66569) {
+                                                        return Aktivitaet.Laufen
+                                                    } else {
+                                                        return Aktivitaet.Rennen
+                                                    }
+                                                } else { // AccelerationMax > 8.561666
+                                                    if (daten.GyroscopeMin <= -0.282831) {
+                                                        return Aktivitaet.Stehen
+                                                    } else {
+                                                        return Aktivitaet.Laufen
+                                                    }
+                                                }
+                                            }
+                                        } else { // AccelerationMax > 10.147824
+                                            if (daten.GyroscopeMin <= -1.1385) {
+                                                return Aktivitaet.Rennen
+                                            } else { // GyroscopeMin > -1.1385
+                                                if (daten.AccelerationMean <= 6.310318) {
+                                                    return Aktivitaet.Laufen
+                                                } else {
+                                                    return Aktivitaet.Rennen
+                                                }
+                                            }
+                                        }
+                                    } else { // GyroscopeMax > 1.737453
+                                        if (daten.GyroscopeMin <= 0.797179) {
+                                            if (daten.AccelerationMax <= 13.867216) {
+                                                if (daten.GyroscopeMin <= -2.290134) {
+                                                    if (daten.AccelerationMean <= 2.486378) {
+                                                        if (daten.GyroscopeStdDev <= 6.723572) {
+                                                            return Aktivitaet.Laufen
+                                                        } else {
+                                                            return Aktivitaet.Stehen
+                                                        }
+                                                    } else { // AccelerationMean > 2.486378
+                                                        return Aktivitaet.Rennen
+                                                    }
+                                                } else { // GyroscopeMin > -2.290134
+                                                    return Aktivitaet.Rennen
+                                                }
+                                            } else { // AccelerationMax > 13.867216
+                                                return Aktivitaet.Stehen
+                                            }
+                                        } else { // GyroscopeMin > 0.797179
+                                            return Aktivitaet.Laufen
+                                        }
+                                    }
+                                }
+                            } else { // AccelerationStdDev > 64.68753
+                                if (daten.GyroscopeStdDev <= 2.414417) {
+                                    if (daten.AccelerationMax <= 13.994109) {
+                                        if (daten.AccelerationMean <= 3.183889) {
+                                            return Aktivitaet.Laufen
+                                        } else {
+                                            return Aktivitaet.Rennen
+                                        }
+                                    } else { // AccelerationMax > 13.994109
+                                        return Aktivitaet.Laufen
+                                    }
+                                } else { // GyroscopeStdDev > 2.414417
+                                    if (daten.GyroscopeMax <= 3.720017) {
+                                        return Aktivitaet.Rennen
+                                    } else { // GyroscopeMax > 3.720017
+                                        if (daten.AccelerationMean <= 3.237759) {
+                                            return Aktivitaet.Rennen
+                                        } else {
+                                            return Aktivitaet.Laufen
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else { // GyroscopeMax > 4.508185
+                        if (daten.GyroscopeStdDev <= 5.161704) {
+                            if (daten.GyroscopeMean <= 3.189124) {
+                                return Aktivitaet.Laufen
+                            } else {
+                                return Aktivitaet.Rennen
+                            }
+                        } else { // GyroscopeStdDev > 5.161704
+                            if (daten.AccelerationMin <= -12.057199) {
+                                return Aktivitaet.Rennen
+                            } else { // AccelerationMin > -12.057199
+                                if (daten.AccelerationMin <= -6.998251) {
+                                    if (daten.AccelerationMin <= -8.907627) {
+                                        if (daten.AccelerationStdDev <= 28.346554) {
+                                            return Aktivitaet.Rennen
+                                        } else {
+                                            return Aktivitaet.Laufen
+                                        }
+                                    } else { // AccelerationMin > -8.907627
+                                        return Aktivitaet.Laufen
+                                    }
+                                } else { // AccelerationMin > -6.998251
+                                    return Aktivitaet.Rennen
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Dieser Teil sollte idealerweise nicht erreicht werden, wenn der Baum vollständig ist.
+        return Aktivitaet.ShowHistory
     }
 }
 
